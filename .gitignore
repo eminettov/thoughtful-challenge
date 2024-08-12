@@ -5,3 +5,9 @@
 # python
 .venv/
 **/__pycache__/
+
+# General
+.AppleDouble
+.LSOverride
+.DS_Store
+output/.DS_Store
