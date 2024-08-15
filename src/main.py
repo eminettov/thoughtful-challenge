@@ -1,5 +1,4 @@
-
-
+import logging
 from bs4 import BeautifulSoup
 import requests
 from typing import Literal, Union
@@ -7,6 +6,8 @@ from datetime import datetime
 import re
 from dateutil.relativedelta import relativedelta
 from xlsxwriter import Workbook
+
+logger = logging.getLogger(__name__)
 
 NEWS_TYPE = Union[Literal["story", "newsletter", "video", "gallery", "live_blog"], None]
 
@@ -37,21 +38,21 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
     if news_type:
         type = TYPE_DICT.get(news_type)
         url = url_template_type.format(search_term, type)
-    print("Search Url: ", url)
+    logger.info(f"Search Url: {url}")
 
     # Getting date range
     current_date = datetime.now()
     start_date = datetime(current_date.year, current_date.month, 1)
     if months > 1:
         start_date = start_date - relativedelta(months=(months-1))
-    print(f"Date range is from {start_date} to {current_date}")
+    logger.info(f"Date range is from {start_date} to {current_date}")
 
     while True:
         page = requests.get(url, headers=headers)
         if page.status_code != 200:
-            print("Error when searching for news, status code: ", page.status_code,)
+            logger.error(f"Error when searching for news, status code: {page.status_code}")
             raise("Error when searching for news")
-        print(f"Search successfull")
+        logger.info(f"Search successfull")
 
         soup = BeautifulSoup(page.text, "html.parser")
         cards = soup.find_all('div', 'promo-wrapper')
@@ -61,26 +62,26 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
             if start_date <= info["date"] <= current_date:
                 articles.append(info)
             else:
-                print(f"Article {info["title"]} outsite range found: {info["date"]}")
+                logger.info(f"Article {info["title"]} outsite range found: {info["date"]}")
                 in_date_range = False
                 break
         
         if not in_date_range:
-            print("Exiting main loop")
+            logger.info("Exiting main loop")
             break
 
         # Get next page
-        print("Getting next page")
+        logger.info("Getting next page")
         next_page = soup.find('div', 'search-results-module-next-page')
         if next_page is None:
-            print(f"Could not find new page")
+            logger.info(f"Could not find new page")
             break
         
         try:
             url = next_page.find("a").get("href")
-            print(f"New page found, URL: {url}")
+            logger.info(f"New page found, URL: {url}")
         except AttributeError:
-            print(f"Could not find new page")
+            logger.info(f"Could not find new page")
             break
         
     return articles
@@ -149,8 +150,9 @@ def create_excel_file(articles: list, search_term):
     wb.close()
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     search_term = "brexit"
-    articles = search_news(search_term, months=10)
+    articles = search_news(search_term, months=5)
     create_excel_file(articles, search_term)
     print("OK")
 
