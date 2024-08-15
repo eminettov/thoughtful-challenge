@@ -1,11 +1,23 @@
 import logging
-from bs4 import BeautifulSoup
-import requests
 from typing import Literal, Union
 from datetime import datetime
 import re
 from dateutil.relativedelta import relativedelta
 from xlsxwriter import Workbook
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+import time
+import requests
+
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Run headless Chrome for no UI
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
 
 logger = logging.getLogger(__name__)
 
@@ -28,88 +40,121 @@ headers = {
 }
 
 def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
-    # Defining variables
-    url_template = "https://www.latimes.com/search?q={}&s=1"
-    url_template_type = "https://www.latimes.com/search?q={}&f1={}&s=1"
-    articles = []
-    in_date_range = True
+    try:
+        # Defining variables
+        articles = []
+        in_date_range = True
+        # driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        driver = webdriver.Chrome()
+        # Open the website
+        driver.get('https://www.latimes.com/')  
 
-    url = url_template.format(search_term)
-    if news_type:
-        type = TYPE_DICT.get(news_type)
-        url = url_template_type.format(search_term, type)
-    logger.info(f"Search Url: {url}")
+        # try:
+        search_overlay = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.CSS_SELECTOR, 'button[data-element="search-button"]'))
+        )
+        # Locate the search button using its data-element attribute
+        search_button = driver.find_element(By.CSS_SELECTOR, 'button[data-element="search-button"]')
+        search_button.click()
 
-    # Getting date range
-    current_date = datetime.now()
-    start_date = datetime(current_date.year, current_date.month, 1)
-    if months > 1:
-        start_date = start_date - relativedelta(months=(months-1))
-    logger.info(f"Date range is from {start_date} to {current_date}")
+        # try:
+        search_overlay = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.CSS_SELECTOR, 'div[data-element="search-overlay"]'))
+        )
+        # Now locate the search input
+        search_input = driver.find_element(By.CSS_SELECTOR, 'input[data-element="search-form-input"]')
+        search_input.send_keys(search_term)
+        
+        # Submit the search form
+        search_submit_button = driver.find_element(By.CSS_SELECTOR, 'button[data-element="search-submit-button"]')
+        search_submit_button.click()
 
-    while True:
-        page = requests.get(url, headers=headers)
-        if page.status_code != 200:
-            logger.error(f"Error when searching for news, status code: {page.status_code}")
-            raise("Error when searching for news")
-        logger.info(f"Search successfull")
+        search_overlay = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.CLASS_NAME, 'search-results-module-main'))
+        )
 
-        soup = BeautifulSoup(page.text, "html.parser")
-        cards = soup.find_all('div', 'promo-wrapper')
+        sort_select = Select(driver.find_element(By.CLASS_NAME, 'select-input'))
+        sort_select.select_by_value('1')
+        
 
-        for card in cards:
-            info = get_card_info(card, search_term)
-            if start_date <= info["date"] <= current_date:
-                articles.append(info)
-            else:
-                logger.info(f"Article {info["title"]} outsite range found: {info["date"]}")
-                in_date_range = False
+        if news_type:
+            type = TYPE_DICT.get(news_type)
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CLASS_NAME, 'search-results-module-main'))
+            )
+            filter_checkbox = driver.find_element(By.CSS_SELECTOR, f'input[value="{type}"]')
+            filter_checkbox.click()
+
+        # Getting date range
+        current_date = datetime.now()
+        start_date = datetime(current_date.year, current_date.month, 1)
+        if months > 1:
+            start_date = start_date - relativedelta(months=(months-1))
+        logger.info(f"Date range is from {start_date} to {current_date}")
+
+        while True:
+            logger.info(f"Search successfull, getting articles from page")
+            # Wait for the next page to load and extract headlines
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CLASS_NAME, 'search-results-module-main'))
+            )
+
+            cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
+
+            for card in cards:
+                info = get_card_info(card, search_term)
+                if start_date <= info["date"] <= current_date:
+                    articles.append(info)
+                else:
+                    logger.info(f"Article {info["title"]} outsite range found: {info["date"]}")
+                    in_date_range = False
+                    break
+            
+            if not in_date_range:
+                logger.info("Exiting main loop")
                 break
-        
-        if not in_date_range:
-            logger.info("Exiting main loop")
-            break
 
-        # Get next page
-        logger.info("Getting next page")
-        next_page = soup.find('div', 'search-results-module-next-page')
-        if next_page is None:
-            logger.info(f"Could not find new page")
-            break
-        
-        try:
-            url = next_page.find("a").get("href")
-            logger.info(f"New page found, URL: {url}")
-        except AttributeError:
-            logger.info(f"Could not find new page")
-            break
+            # Get next page
+            logger.info("Getting next page")
+            # Navigate to the next page
+            next_page_button = driver.find_element(By.CLASS_NAME, 'search-results-module-next-page')
+            # Check if the "Next" button is inactive (no <a> tag present, only <svg>)
+            if next_page_button.find_elements(By.CSS_SELECTOR, 'svg[data-inactive]'):
+                logger.info(f"Could not find new page")
+                break
+
+            # If <a> tag is present, it means there is a next page
+            next_button = next_page_button.find_element(By.TAG_NAME, 'a')
+            next_button.click()
+    except TimeoutException:
+        logging.error("Timeout error, page cound not load")
+        return False
         
     return articles
 
 def get_card_info(card, search_term):
-    
-    title = card.find("h3", "promo-title").text
-    description = card.find("p", 'promo-description').text
-    timestamp = card.find("p", "promo-timestamp").get("data-timestamp")
-    # format_string = "%B %d, %Y"
-
+    title = card.find_element(By.CSS_SELECTOR, "h3.promo-title").text
+    description = card.find_element(By.CSS_SELECTOR, 'p.promo-description').text
+    timestamp = card.find_element(By.CSS_SELECTOR, "p.promo-timestamp").get_attribute("data-timestamp")
     datetime_object = datetime.fromtimestamp(int(timestamp)/ 1000)
-    # datetime_object = datetime.strptime(date_str, format_string)
-    # Getting the first image for the card
-    pictures = card.find("img", "image").get("srcset").split(",")
-    picture = pictures[0]
-    picture_url = picture.split(" ")[0]
-    resposne = requests.get(picture_url)
-    if resposne.status_code != 200:
-        raise("Error when getting image")
-    # Gettting picture extension
-    file_extension = resposne.headers["Content-Type"].split("/")[-1]
-    filename = f"{title.rstrip()}.{file_extension}"
-    open(f"./output/{filename}", 'wb').write(resposne.content)
+    try:
+        pictures = card.find_element(By.CSS_SELECTOR, "img.image").get_attribute("srcset").split(",")
+        picture = pictures[0]
+        picture_url = picture.split(" ")[0]
+        resposne = requests.get(picture_url)
+        if resposne.status_code != 200:
+            raise("Error when getting image")
+        # Gettting picture extension
+        file_extension = resposne.headers["Content-Type"].split("/")[-1]
+        filename = f"{title.rstrip()}.{file_extension}"
+        open(f"./output/{filename}", 'wb').write(resposne.content)
+    except NoSuchElementException:
+        logger.warning(f"Could not find picture")
+        filename = "Picture not found"
     
     count = title.count(search_term) + description.count(search_term)
     has_money = check_money_patters(title, description)
-
+     
     return {
         "title": title,
         "description": description,
@@ -151,8 +196,10 @@ def create_excel_file(articles: list, search_term):
 
 def main():
     logging.basicConfig(level=logging.INFO)
+
+    
     search_term = "brexit"
-    articles = search_news(search_term, months=5)
+    articles = search_news(search_term, "newsletter")
     create_excel_file(articles, search_term)
     print("OK")
 
