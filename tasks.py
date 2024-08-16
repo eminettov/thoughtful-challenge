@@ -155,9 +155,6 @@ def create_excel_file(articles: list, search_term):
                     value = value.strftime('%m/%d/%Y')
                 ws.write(row_index, col, value)
 
-        # item.add_file(filepath, f"{search_term}.xlsx")
-        # item.save()   
-
     wb.close()
 
 @task
