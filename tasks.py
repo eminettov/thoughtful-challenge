@@ -49,7 +49,6 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
         articles = []
         in_date_range = True
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
         logger.info(f"Opening web site: https://www.latimes.com/")
         driver.get('https://www.latimes.com/')  
         logger.info("Website openned")
@@ -72,8 +71,9 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
         search_submit_button = driver.find_element(By.CSS_SELECTOR, 'button[data-element="search-submit-button"]')
         search_submit_button.click()
 
-        sort_select = Select(driver.find_element(By.CLASS_NAME, 'select-input'))
-        sort_select.select_by_value('1')
+        WebDriverWait(driver, 10).until(
+                lambda driver: driver.execute_script('return document.readyState') == 'complete'
+            )
         
         if news_type:
             type = TYPE_DICT.get(news_type)
@@ -92,6 +92,9 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
 
         while True:
             logger.info(f"Search successfull, getting articles from page")
+
+            sort_select = Select(driver.find_element(By.CLASS_NAME, 'select-input'))
+            sort_select.select_by_value('1')
 
             WebDriverWait(driver, 10).until(
                 lambda driver: driver.execute_script('return document.readyState') == 'complete'
@@ -199,25 +202,30 @@ def create_excel_file(articles: list, search_term):
 def main_task():
     logging.basicConfig(level=logging.INFO)
     logger.info("Getting INPUT values")
-    item = workitems.inputs.current
-    print("Received payload:", item.payload)
 
-    # Access the specific values from the work item
-    search_term = item.payload.get("SEARCH_TERM", None)
-    if search_term is None:
-        logger.error("SEARCH_TERM can not be None")
-        return False
-    
-    news_type = item.payload.get("NEWS_TYPE", None)
-    months = item.payload.get("MONTHS", None)
-    if isinstance(months, str):
-        # Converting monsths to a int
-        months = int(months)
+    in_robot = os.getenv("IN_ROBOT", False)
+    logger.info(f"IN_ROBOT: {in_robot}")
+    if in_robot:
+        item = workitems.inputs.current
+        logger.info(f"Received payload: {item.payload}")
+
+        search_term = item.payload.get("SEARCH_TERM", None)
+        if search_term is None:
+            logger.error("SEARCH_TERM can not be None")
+            return False
+        
+        news_type = item.payload.get("NEWS_TYPE", None)
+        months = item.payload.get("MONTHS", None)
+        if isinstance(months, str):
+            # Converting monsths to a int
+            months = int(months)
+    else:
+        search_term = "brexit"
+        news_type = None
+        months = 4
 
     articles = search_news(search_term, news_type, months)
     if not articles:
-        # Timeout error
-        logger.error("Timeout error, returning false")
         return False
     
     create_excel_file(articles, search_term)
