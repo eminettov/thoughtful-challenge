@@ -163,7 +163,7 @@ def get_card_info(card, search_term):
         # removing characters that can break the path
         safe_title = re.sub(r'[<>"/\\|?*]', '_', title).rstrip()
         filename = f"{safe_title}.{file_extension}"
-        open(f"output/{safe_title}", 'wb').write(resposne.content)
+        open(f"output/{filename}", 'wb').write(resposne.content)
     except NoSuchElementException:
         logger.warning(f"Could not find picture")
         filename = "Picture not found"
