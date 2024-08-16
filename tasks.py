@@ -105,10 +105,10 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
             max_retries = 3
             while retry < max_retries:
                 cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
-                logger.info(f"CARDS: {cards}")
+                # logger.info(f"CARDS: {cards}")
                 try:
                     for card in cards:
-                        logger.info(f"CARD: {card}")
+                        # logger.info(f"CARD: {card}")
                         info = get_card_info(card, search_term)
 
                         if start_date <= info["date"] <= current_date:
@@ -148,7 +148,11 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
 
 def get_card_info(card, search_term):
     title = card.find_element(By.CSS_SELECTOR, "h3.promo-title").text
-    description = card.find_element(By.CSS_SELECTOR, 'p.promo-description').text
+    try:
+        description = card.find_element(By.CSS_SELECTOR, 'p.promo-description').text
+    except NoSuchElementException:
+        description = "Not found"
+
     timestamp = card.find_element(By.CSS_SELECTOR, "p.promo-timestamp").get_attribute("data-timestamp")
     datetime_object = datetime.fromtimestamp(int(timestamp)/ 1000)
     try:
@@ -191,7 +195,7 @@ def check_money_patters(title: str, description: str):
 def create_excel_file(articles: list, search_term):
     logger.info("Creating excel")
     headers = ["title", "date", "description", "pic_filename", "count", "has_money"]
-    wb=Workbook(f"./output/articles-{search_term}.xlsx")
+    wb=Workbook(f"output/articles-{search_term}.xlsx")
     ws=wb.add_worksheet()    
 
     if len(articles) == 0:
@@ -240,7 +244,7 @@ def main_task():
     articles = search_news(search_term, news_type, months)
     if not articles:
         return False
-    
+    logger.info(f"AMOUNT OF ARTICLES: {len(articles)}")
     create_excel_file(articles, search_term)
     logger.info("Exiting task")
 
