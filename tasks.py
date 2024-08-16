@@ -54,14 +54,14 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
         driver.get('https://www.latimes.com/')  
         logger.info("Website openned")
 
-        search_overlay = WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CLASS_NAME, 'page-main'))
         )
 
         search_button = driver.find_element(By.CSS_SELECTOR, 'button[data-element="search-button"]')
         search_button.click()
 
-        search_overlay = WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, 'div[data-element="search-overlay"]'))
         )
 
@@ -96,24 +96,13 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
             WebDriverWait(driver, 10).until(
                 lambda driver: driver.execute_script('return document.readyState') == 'complete'
             )
-            # # Wait for the next page to load and extract headlines
-            # WebDriverWait(driver, 10).until(
-            #     EC.presence_of_all_elements_located((By.CLASS_NAME, 'search-results-module-main'))
-            # )
 
             cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
             logger.info(f"CARDS: {cards}")
 
             for card in cards:
                 logger.info(f"CARD: {card}")
-                try:
-                    info = get_card_info(card, search_term)
-                except StaleElementReferenceException:
-                    logger.warning(f"Stale element found. Refetching the element.")
-                    # Refetch the card
-                    cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
-                    card = cards[cards.index(card)]
-                    info = get_card_info(card, search_term)
+                info = get_card_info(card, search_term)
 
                 if start_date <= info["date"] <= current_date:
                     articles.append(info)
