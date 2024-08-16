@@ -111,7 +111,8 @@ def get_card_info(card, search_term):
             raise("Error when getting image")
         # Gettting picture extension
         file_extension = resposne.headers["Content-Type"].split("/")[-1]
-        filename = f"{title.rstrip()}.{file_extension}"
+        safe_title = re.sub(r'[<>"/\\|?*]', '_', title).rstrip()
+        filename = f"{safe_title}.{file_extension}"
         open(f"./output/{filename}", 'wb').write(resposne.content)
     
     count = title.count(search_term) + description.count(search_term)
