@@ -92,14 +92,20 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
 
         while True:
             logger.info(f"Search successfull, getting articles from page")
-            # Wait for the next page to load and extract headlines
+
             WebDriverWait(driver, 10).until(
-                EC.presence_of_all_elements_located((By.CLASS_NAME, 'search-results-module-main'))
+                lambda driver: driver.execute_script('return document.readyState') == 'complete'
             )
+            # # Wait for the next page to load and extract headlines
+            # WebDriverWait(driver, 10).until(
+            #     EC.presence_of_all_elements_located((By.CLASS_NAME, 'search-results-module-main'))
+            # )
 
             cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
+            logger.info(f"CARDS: {cards}")
 
             for card in cards:
+                logger.info(f"CARD: {card}")
                 try:
                     info = get_card_info(card, search_term)
                 except StaleElementReferenceException:
