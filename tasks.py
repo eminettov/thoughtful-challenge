@@ -92,7 +92,9 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
 def get_card_info(card, search_term):
     
     title = card.find("h3", "promo-title").text
-    description = card.find("p", 'promo-description').text
+    description = card.find("p", 'promo-description')
+    if description:
+        description = description.text
     timestamp = card.find("p", "promo-timestamp").get("data-timestamp")
     # format_string = "%B %d, %Y"
 
@@ -177,7 +179,9 @@ def main_task():
         
         news_type = item.payload.get("NEWS_TYPE", None)
         months = item.payload.get("MONTHS", None)
-        if isinstance(months, str):
+        if months is None:
+            months = 1
+        elif isinstance(months, str):
             # Converting monsths to a int
             months = int(months)
     else:
