@@ -16,6 +16,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, StaleElementReferenceException
 import requests
 import os
+import time
 
 
 chrome_options = Options()
@@ -100,20 +101,30 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
                 lambda driver: driver.execute_script('return document.readyState') == 'complete'
             )
 
-            cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
-            logger.info(f"CARDS: {cards}")
+            retry = 0
+            max_retries = 3
+            while retry < max_retries:
+                cards = driver.find_elements(By.CLASS_NAME, 'promo-wrapper')
+                logger.info(f"CARDS: {cards}")
+                try:
+                    for card in cards:
+                        logger.info(f"CARD: {card}")
+                        info = get_card_info(card, search_term)
 
-            for card in cards:
-                logger.info(f"CARD: {card}")
-                info = get_card_info(card, search_term)
-
-                if start_date <= info["date"] <= current_date:
-                    articles.append(info)
-                else:
-                    logger.info(f"Article {info['title']} outsite range found: {info['date']}")
-                    in_date_range = False
+                        if start_date <= info["date"] <= current_date:
+                            articles.append(info)
+                        else:
+                            logger.info(f"Article {info['title']} outsite range found: {info['date']}")
+                            in_date_range = False
+                            break
                     break
-            
+                except StaleElementReferenceException:
+                    retry += 1
+                    time.sleep(1)  # Small delay before retrying
+                    if retry == max_retries:
+                        raise StaleElementReferenceException
+
+
             if not in_date_range:
                 logger.info("Exiting main loop")
                 break
@@ -149,8 +160,10 @@ def get_card_info(card, search_term):
             raise("Error when getting image")
         # Gettting picture extension
         file_extension = resposne.headers["Content-Type"].split("/")[-1]
-        filename = f"{title.rstrip()}.{file_extension}"
-        open(f"./output/{filename}", 'wb').write(resposne.content)
+        # removing characters that can break the path
+        safe_title = re.sub(r'[<>"/\\|?*]', '_', title).rstrip()
+        filename = f"{safe_title}.{file_extension}"
+        open(f"output/{safe_title}", 'wb').write(resposne.content)
     except NoSuchElementException:
         logger.warning(f"Could not find picture")
         filename = "Picture not found"
@@ -220,9 +233,9 @@ def main_task():
             # Converting monsths to a int
             months = int(months)
     else:
-        search_term = "brexit"
+        search_term = "olympics"
         news_type = None
-        months = 4
+        months = 1
 
     articles = search_news(search_term, news_type, months)
     if not articles:
