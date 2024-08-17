@@ -233,7 +233,9 @@ def main_task():
         
         news_type = item.payload.get("NEWS_TYPE", None)
         months = item.payload.get("MONTHS", None)
-        if isinstance(months, str):
+        if months is None:
+            months = 1
+        elif isinstance(months, str):
             # Converting monsths to a int
             months = int(months)
     else:
