@@ -90,7 +90,7 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
     return articles
 
 def get_card_info(card, search_term):
-    title = card.find("h3", "promo-title")
+    title = card.find("h3", "promo-title").text
     description = card.find("p", 'promo-description')
     if description:
         description = description.text
