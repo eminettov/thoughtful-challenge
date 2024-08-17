@@ -90,11 +90,13 @@ def search_news(search_term: str, news_type: NEWS_TYPE = None, months: int = 1):
     return articles
 
 def get_card_info(card, search_term):
-    
-    title = card.find("h3", "promo-title").text
+    title = card.find("h3", "promo-title")
     description = card.find("p", 'promo-description')
     if description:
         description = description.text
+    else:
+        description = "Not found"
+
     timestamp = card.find("p", "promo-timestamp").get("data-timestamp")
     # format_string = "%B %d, %Y"
 
